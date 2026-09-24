@@ -13,6 +13,15 @@ REPORTS_DIR = BASE_DIR / "reports"
 PID_FILE = BASE_DIR / "daemon.pid"
 LOG_FILE = BASE_DIR / "daemon.log"
 CURRENT_SESSION = BASE_DIR / "current_session.json"
+REPORT_FILE = REPORTS_DIR / "report.html"
 
 DEFAULT_INTERVAL = 30  # seconds between screenshots
 DEFAULT_MODE = "ask"  # ask | later | auto
+
+# Localhost report server (chronoshot serve).
+# Override with env vars, e.g.
+#   CHRONOSHOT_HOST=0.0.0.0 CHRONOSHOT_PORT=9000 chronoshot.py serve
+SERVE_HOST = os.environ.get("CHRONOSHOT_HOST", "127.0.0.1")
+SERVE_PORT = int(os.environ.get("CHRONOSHOT_PORT", "8000"))
+SERVER_PID_FILE = BASE_DIR / "server.pid"
+SERVER_LOG_FILE = BASE_DIR / "server.log"

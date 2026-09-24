@@ -596,11 +596,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 def cmd_report(args):
     ensure_dirs()
     d_from, d_to = resolve_range(args)
-    out_path = (
-        Path(args.out).expanduser().resolve()
-        if args.out
-        else config.REPORTS_DIR / "report.html"
-    )
+    out_path = Path(args.out).expanduser().resolve() if args.out else config.REPORT_FILE
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     data = collect_report_data(d_from, d_to, args.project, args.embed, out_path.parent)

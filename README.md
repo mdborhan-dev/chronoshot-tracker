@@ -174,6 +174,49 @@ Without `--embed`, screenshots are linked relatively — the report is tiny but 
 - **Print** stylesheet (dark theme off, all days expanded)
 - Theme toggle: auto / light / dark (remembered in `localStorage`)
 
+### `serve` — view the report at `http://localhost:8000/`
+
+Builds (if needed) and serves the report over localhost as a background daemon. Runs in a detached process, so your shell stays free.
+
+```bash
+python chronoshot.py serve                  # build if needed, serve, open browser
+python chronoshot.py serve --build          # always rebuild first
+python chronoshot.py serve --port 9000      # different port
+python chronoshot.py serve --foreground     # Ctrl+C to stop, for debugging
+python chronoshot.py serve --status         # is it running?
+python chronoshot.py serve --stop           # stop the daemon
+```
+
+| Flag                 | Meaning                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| `--host ADDR`        | Bind address (default: `127.0.0.1` — localhost only)         |
+| `--port N`           | Port (default: `8000`)                                       |
+| `--report PATH`      | Report file to serve (default: `<data>/reports/report.html`) |
+| `--build`            | Regenerate the report before starting                        |
+| `--no-open`          | Don't open the browser automatically                         |
+| `--foreground`, `-f` | Run in the foreground instead of as a daemon                 |
+| `--stop`             | Stop the running server                                      |
+| `--status`           | Show whether the server is running                           |
+
+**Why it's served from the data folder, not from `reports/`:** without `--embed`, the report references screenshots with relative paths like `../screenshots/accepted/...`. Serving `~/timetrack/` keeps both `reports/` and `screenshots/` reachable; serving just `reports/` would 404 every image.
+
+**Regenerating the report while serving:** the server reads files fresh on each request, so just run `chronoshot.py report` in another terminal and hit refresh in the browser — no restart needed.
+
+**Sharing with your phone on the same wifi:**
+
+```bash
+python chronoshot.py serve --host 0.0.0.0
+# then visit http://<your-laptop-ip>:8000/reports/report.html
+```
+
+⚠️ The server has **no authentication**. Only bind `0.0.0.0` on networks you trust. Stop it with `serve --stop` when you're done.
+
+**Environment variables** (same pattern as `TIMETRACK_HOME`):
+
+```bash
+CHRONOSHOT_HOST=127.0.0.1 CHRONOSHOT_PORT=9000 python chronoshot.py serve
+```
+
 ### `summary` — quick totals in the terminal
 
 ```bash

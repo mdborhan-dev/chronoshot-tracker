@@ -2,7 +2,7 @@
 
 import argparse
 
-from . import config, daemon, report, review, session, summary
+from . import config, daemon, report, review, serve, session, summary
 from .util import ensure_dirs, parse_interval, valid_day
 
 
@@ -101,6 +101,35 @@ def main():
     )
     p.set_defaults(func=report.cmd_report)
 
+    # serve
+    p = sub.add_parser(
+        "serve", help="serve the report over localhost (runs as a daemon)"
+    )
+    p.add_argument(
+        "--host", default=None, help=f"bind address (default: {config.SERVE_HOST})"
+    )
+    p.add_argument(
+        "--port", type=int, default=None, help=f"port (default: {config.SERVE_PORT})"
+    )
+    p.add_argument(
+        "--report", help="report file to serve (default: <data>/reports/report.html)"
+    )
+    p.add_argument(
+        "--build", action="store_true", help="regenerate the report before serving"
+    )
+    p.add_argument("--no-open", action="store_true", help="don't open the browser")
+    p.add_argument(
+        "--foreground",
+        "-f",
+        action="store_true",
+        help="run in the foreground instead of as a daemon (Ctrl+C to stop)",
+    )
+    p.add_argument("--stop", action="store_true", help="stop the running server")
+    p.add_argument(
+        "--status", action="store_true", help="show whether the server is running"
+    )
+    p.set_defaults(func=serve.cmd_serve)
+
     p = sub.add_parser("summary", help="print totals in the terminal")
     add_range_args(p)
     p.set_defaults(func=summary.cmd_summary)
@@ -114,6 +143,11 @@ def main():
     d.add_argument("--project", default="Default")
     d.add_argument("--mode", default=config.DEFAULT_MODE)
     d.set_defaults(func=lambda a: daemon.daemon_loop(a.interval, a.project, a.mode))
+
+    s = sub.add_parser("_server")
+    s.add_argument("--host", default=config.SERVE_HOST)
+    s.add_argument("--port", type=int, default=config.SERVE_PORT)
+    s.set_defaults(func=serve.cmd_server_daemon)
 
     args = parser.parse_args()
     ensure_dirs()
