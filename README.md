@@ -9,17 +9,10 @@ You start a session, chronoshot snaps a screenshot every N seconds, and when you
 ## Quick start
 
 ```bash
-# 1. Start tracking a project (screenshot every 30s, popup asks each time)
-python chronoshot.py start -p "My Project"
-
-# 2. See what's happening
-python chronoshot.py status
-
-# 3. Stop and log the session
-python chronoshot.py stop
-
-# 4. Build and open the report
-python chronoshot.py report --open
+chronoshot start -p "My Project"     # start tracking, screenshot every 30s
+chronoshot status                    # see what's running
+chronoshot stop                      # stop and log the session
+chronoshot report --open             # build and open the report
 ```
 
 That's the whole loop. Everything else is optional.
@@ -45,25 +38,57 @@ That's the whole loop. Everything else is optional.
 
 ## Installation
 
-Chronoshot is a plain script + package. Clone it and run it in place:
+Chronoshot is a thin launcher next to a small package. Clone it, then make it available as `chronoshot` on your `$PATH`.
 
 ```bash
 git clone git@github.com:mdborhan-dev/chronoshot-tracker.git
 cd chronoshot-tracker
-python chronoshot.py status      # smoke test
+chmod +x chronoshot.py
 ```
 
-Want it on your `$PATH`?
+### Install as `chronoshot`
+
+Symlink the launcher into a directory that's already on your `$PATH`. `~/.local/bin` is the XDG standard and is on the default `$PATH` on most Linux distributions:
 
 ```bash
-# Make the launcher executable
-chmod +x chronoshot.py
-
-# Symlink it somewhere on your PATH
+mkdir -p ~/.local/bin
 ln -s "$PWD/chronoshot.py" ~/.local/bin/chronoshot
+hash -r
 ```
 
-Then `chronoshot start -p "My Project"` works from anywhere.
+Verify:
+
+```bash
+which chronoshot        # → /home/<you>/.local/bin/chronoshot
+chronoshot --help
+```
+
+If `~/.local/bin` is not on your `$PATH`, add it once:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Why a symlink, not a copy
+
+A symlink points at your working copy, so `git pull` and local edits take effect immediately — no stale duplicate to forget about. If you ever move the project folder, update the link:
+
+```bash
+ln -sfn /new/path/to/chronoshot.py ~/.local/bin/chronoshot
+```
+
+### No install / portable use
+
+If you'd rather not touch `$PATH` at all, run the launcher directly from the project folder with `./`:
+
+```bash
+cd ~/Projects/chronoshot
+./chronoshot.py start -p "My Project"
+./chronoshot.py report --open
+```
+
+`./` tells the shell "the file in this directory", which is safe, unambiguous, and doesn't require any setup.
 
 ---
 
@@ -72,10 +97,10 @@ Then `chronoshot start -p "My Project"` works from anywhere.
 ### `start` — begin tracking
 
 ```bash
-python chronoshot.py start -p "My Project"
-python chronoshot.py start "My Project"            # project as positional arg
-python chronoshot.py start -p "Writing" -i 15m     # screenshot every 15 minutes
-python chronoshot.py start -p "Deep work" --mode later
+chronoshot start -p "My Project"
+chronoshot start "My Project"            # project as positional arg
+chronoshot start -p "Writing" -i 15m     # screenshot every 15 minutes
+chronoshot start -p "Deep work" --mode later
 ```
 
 | Flag               | Meaning                                             | Default   |
@@ -93,15 +118,15 @@ python chronoshot.py start -p "Deep work" --mode later
 Stops the current session (logs it) and starts a new one, keeping the interval and mode:
 
 ```bash
-python chronoshot.py switch "Other Project"
+chronoshot switch "Other Project"
 ```
 
 ### `stop` — stop and log
 
 ```bash
-python chronoshot.py stop
-python chronoshot.py stop --note "wrapped up early"
-python chronoshot.py stop --at 17:30      # you actually stopped at 17:30, not now
+chronoshot stop
+chronoshot stop --note "wrapped up early"
+chronoshot stop --at 17:30      # you actually stopped at 17:30, not now
 ```
 
 `--at HH:MM` is handy if you forgot to stop and only remember later.
@@ -109,7 +134,7 @@ python chronoshot.py stop --at 17:30      # you actually stopped at 17:30, not n
 ### `status` — what's running, what's pending
 
 ```bash
-python chronoshot.py status
+chronoshot status
 ```
 
 Shows the running project, elapsed time, interval, mode, plus a breakdown of pending screenshots by day and project.
@@ -117,12 +142,12 @@ Shows the running project, elapsed time, interval, mode, plus a breakdown of pen
 ### `review` — accept or reject pending screenshots
 
 ```bash
-python chronoshot.py review                    # interactive: pick a scope
-python chronoshot.py review --today
-python chronoshot.py review --project Writing
-python chronoshot.py review --date 2026-09-24
-python chronoshot.py review --all
-python chronoshot.py review --terminal         # no yad, use your image viewer
+chronoshot review                    # interactive: pick a scope
+chronoshot review --today
+chronoshot review --project Writing
+chronoshot review --date 2026-09-24
+chronoshot review --all
+chronoshot review --terminal         # no yad, use your image viewer
 ```
 
 With no filters, chronoshot lists the pending groups and asks which one to review. With `--today`, `--project`, `--date`, or `--all` it jumps straight in.
@@ -142,11 +167,11 @@ With no filters, chronoshot lists the pending groups and asks which one to revie
 ### `report` — one HTML page with everything
 
 ```bash
-python chronoshot.py report --open
-python chronoshot.py report --last 7 --open
-python chronoshot.py report --from 2026-09-01 --to 2026-09-30
-python chronoshot.py report --project Writing --open
-python chronoshot.py report --embed --out ~/Desktop/report.html
+chronoshot report --open
+chronoshot report --last 7 --open
+chronoshot report --from 2026-09-01 --to 2026-09-30
+chronoshot report --project Writing --open
+chronoshot report --embed --out ~/Desktop/report.html
 ```
 
 | Flag                       | Meaning                                                   |
@@ -179,12 +204,12 @@ Without `--embed`, screenshots are linked relatively — the report is tiny but 
 Builds (if needed) and serves the report over localhost as a background daemon. Runs in a detached process, so your shell stays free.
 
 ```bash
-python chronoshot.py serve                  # build if needed, serve, open browser
-python chronoshot.py serve --build          # always rebuild first
-python chronoshot.py serve --port 9000      # different port
-python chronoshot.py serve --foreground     # Ctrl+C to stop, for debugging
-python chronoshot.py serve --status         # is it running?
-python chronoshot.py serve --stop           # stop the daemon
+chronoshot serve                  # build if needed, serve, open browser
+chronoshot serve --build          # always rebuild first
+chronoshot serve --port 9000      # different port
+chronoshot serve --foreground     # Ctrl+C to stop, for debugging
+chronoshot serve --status         # is it running?
+chronoshot serve --stop           # stop the daemon
 ```
 
 | Flag                 | Meaning                                                      |
@@ -200,12 +225,12 @@ python chronoshot.py serve --stop           # stop the daemon
 
 **Why it's served from the data folder, not from `reports/`:** without `--embed`, the report references screenshots with relative paths like `../screenshots/accepted/...`. Serving `~/timetrack/` keeps both `reports/` and `screenshots/` reachable; serving just `reports/` would 404 every image.
 
-**Regenerating the report while serving:** the server reads files fresh on each request, so just run `chronoshot.py report` in another terminal and hit refresh in the browser — no restart needed.
+**Regenerating the report while serving:** the server reads files fresh on each request, so just run `chronoshot report` in another terminal and hit refresh in the browser — no restart needed.
 
 **Sharing with your phone on the same wifi:**
 
 ```bash
-python chronoshot.py serve --host 0.0.0.0
+chronoshot serve --host 0.0.0.0
 # then visit http://<your-laptop-ip>:8000/reports/report.html
 ```
 
@@ -214,14 +239,14 @@ python chronoshot.py serve --host 0.0.0.0
 **Environment variables** (same pattern as `TIMETRACK_HOME`):
 
 ```bash
-CHRONOSHOT_HOST=127.0.0.1 CHRONOSHOT_PORT=9000 python chronoshot.py serve
+CHRONOSHOT_HOST=127.0.0.1 CHRONOSHOT_PORT=9000 chronoshot serve
 ```
 
 ### `summary` — quick totals in the terminal
 
 ```bash
-python chronoshot.py summary --last 7
-python chronoshot.py summary --project Writing --last 30
+chronoshot summary --last 7
+chronoshot summary --project Writing --last 30
 ```
 
 Prints a per-day breakdown and totals by project.
@@ -229,7 +254,7 @@ Prints a per-day breakdown and totals by project.
 ### `delete` — remove a screenshot by file name
 
 ```bash
-python chronoshot.py delete 2026-09-24_153012__Writing.png
+chronoshot delete 2026-09-24_153012__Writing.png
 ```
 
 Looks in both `accepted/` and `pending/`.
@@ -262,8 +287,10 @@ By default, everything is under `~/timetrack`:
 ├── reports/
 │   └── report.html                  last generated report
 ├── current_session.json             present only while tracking
-├── daemon.pid                       PID of the running daemon
-└── daemon.log                       daemon stdout/stderr
+├── daemon.pid                       PID of the running tracker daemon
+├── daemon.log                       tracker stdout/stderr
+├── server.pid                       PID of the running report server
+└── server.log                       report server stdout/stderr
 ```
 
 **Session format** (`logs/YYYY-MM-DD.json`) — a list, appended to:
@@ -297,18 +324,18 @@ Old files without `__project` are treated as project `Default`, so previous logs
 Set `TIMETRACK_HOME` to put the data somewhere else — useful for testing:
 
 ```bash
-TIMETRACK_HOME=/tmp/chronoshot-test python chronoshot.py start -p Test
+TIMETRACK_HOME=/tmp/chronoshot-test chronoshot start -p Test
 ```
 
 ---
 
 ## Project layout
 
-Chronoshot is a thin launcher next to a small package. Every file does one thing.
+Chronoshot is a thin launcher next to a small package. Every file does one thing. The `chronoshot` you run is a symlink to the launcher.
 
 ```
 chronoshot-tracker/
-├── chronoshot.py          ← the launcher you run
+├── chronoshot.py          ← the launcher you run (via the `chronoshot` symlink)
 ├── README.md
 └── chronoshot/            ← the package
     ├── __init__.py
@@ -321,14 +348,18 @@ chronoshot-tracker/
     ├── session.py         ← start / stop / switch / status
     ├── review.py          ← accept / reject pending
     ├── report.py          ← the HTML report + its template
+    ├── serve.py           ← localhost report server
     └── summary.py         ← terminal totals + delete
 ```
 
-You can also run it as a module — the two are equivalent:
+After `ln -s "$PWD/chronoshot.py" ~/.local/bin/chronoshot`, typing `chronoshot` runs the launcher exactly like `./chronoshot.py` would.
+
+You can also run it as a module — the three are equivalent:
 
 ```bash
-python chronoshot.py start -p "My Project"
-python -m chronoshot start -p "My Project"
+chronoshot start -p "My Project"              # installed symlink
+./chronoshot.py start -p "My Project"         # from the project folder
+python -m chronoshot start -p "My Project"    # as a module
 ```
 
 ---
@@ -346,6 +377,32 @@ python -m chronoshot start -p "My Project"
 
 ## Troubleshooting
 
+**`chronoshot: command not found`**
+The symlink isn't on your `$PATH`, or the shell hasn't noticed it yet. Check:
+
+```bash
+which chronoshot
+echo $PATH           # does it contain ~/.local/bin?
+hash -r
+```
+
+If `~/.local/bin` isn't in `$PATH`, add it in `~/.bashrc` and `source ~/.bashrc`.
+
+**`chronoshot serve` says "invalid choice: 'serve'"**
+You're running an old copy. Check which one:
+
+```bash
+which chronoshot
+ls -la $(which chronoshot)     # the symlink should point at your project's chronoshot.py
+```
+
+If it points somewhere else, re-create it:
+
+```bash
+ln -sfn ~/Projects/chronoshot/chronoshot.py ~/.local/bin/chronoshot
+hash -r
+```
+
 **"Tracking already running"**
 You have a live daemon. `status` shows it; `stop` ends it. If you're sure nothing is running:
 
@@ -357,8 +414,8 @@ rm ~/timetrack/daemon.pid
 The daemon died without logging (crash, kill -9, reboot). Run:
 
 ```bash
-python chronoshot.py stop                 # logs it as ending now
-python chronoshot.py stop --at 17:30      # logs it as ending at 17:30
+chronoshot stop                 # logs it as ending now
+chronoshot stop --at 17:30      # logs it as ending at 17:30
 ```
 
 **No screenshots are being taken**
@@ -376,6 +433,7 @@ and look at `~/timetrack/daemon.log` for errors.
 ```bash
 sudo apt install yad          # Debian/Ubuntu
 sudo pacman -S yad            # Arch
+sudo dnf in yad               # Fedora
 ```
 
 or just use `--mode later` and review in bulk.

@@ -15,7 +15,7 @@ LOG_FILE = BASE_DIR / "daemon.log"
 CURRENT_SESSION = BASE_DIR / "current_session.json"
 REPORT_FILE = REPORTS_DIR / "report.html"
 
-DEFAULT_INTERVAL = 30  # seconds between screenshots
+DEFAULT_INTERVAL = 900  # 900 seconds/ 15 minutes between screenshots
 DEFAULT_MODE = "ask"  # ask | later | auto
 
 # Localhost report server (chronoshot serve).
