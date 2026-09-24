@@ -1,721 +1,350 @@
 # Chronoshot
 
-**Chronoshot** is a lightweight Linux time tracker that periodically captures screenshots while you work.
+A tiny, local-only time tracker that takes periodic screenshots while you work. Everything lives on your machine — no account, no cloud, no telemetry.
 
-It tracks time by **project**, lets you accept or reject screenshots, stores sessions as simple JSON files, and generates a self-contained HTML report with timelines, charts, filters, and screenshots.
+You start a session, chronoshot snaps a screenshot every N seconds, and when you stop it logs the time. Screenshots can be accepted on the spot, reviewed later, or auto-accepted. Then `report` builds a single self-contained HTML page with every day, filterable and charted.
 
-> Built for a simple workflow: start working → Chronoshot takes screenshots → review them → generate a report.
+---
 
-## Features
+## Quick start
 
-- ⏱️ Track time spent on different projects
-- 📸 Automatically capture screenshots at configurable intervals
-- 🗂️ Project-aware screenshots and sessions
-- 🔀 Switch between projects without manually stopping and restarting
-- 👀 Review screenshots before accepting them
-- 🖥️ GUI review with `yad`, with a terminal fallback
-- 📊 Generate a single-page HTML time report
-- 📈 Daily time charts and project breakdowns
-- 🔎 Filter reports by date, project, and search text
-- 🌙 Automatic/light/dark report themes
-- 📤 Export report data to CSV from the browser
-- 📝 Add notes to sessions
-- 📁 Uses plain files and JSON — no database required
-- 🔄 Compatible with existing data in `~/timetrack`
-- 🧪 Use `TIMETRACK_HOME` for an isolated testing directory
+```bash
+# 1. Start tracking a project (screenshot every 30s, popup asks each time)
+python chronoshot.py start -p "My Project"
+
+# 2. See what's happening
+python chronoshot.py status
+
+# 3. Stop and log the session
+python chronoshot.py stop
+
+# 4. Build and open the report
+python chronoshot.py report --open
+```
+
+That's the whole loop. Everything else is optional.
+
+---
 
 ## Requirements
 
-Chronoshot requires **Python 3**.
+- **Python 3.9+** (no third-party packages required to run it)
+- **A screenshot tool**, any one of these — chronoshot tries them in order:
+  - `spectacle` (KDE)
+  - `gnome-screenshot` (GNOME)
+  - `grim` (wlroots Wayland)
+  - `scrot` (X11)
+- **`yad`** (optional) — for the accept/reject popup while tracking, and the review window. Without it, screenshots pile up for `review` instead.
+- **Pillow** (optional) — makes popup previews smaller and lets `report --embed` produce a single shareable file.
 
-For screenshots, it automatically tries the following tools in order:
+  ```bash
+  pip install Pillow
+  ```
 
-1. `spectacle` — KDE
-2. `gnome-screenshot` — GNOME
-3. `grim` — wlroots/Wayland
-4. `scrot` — X11
-
-You only need one working screenshot backend.
-
-### Optional dependencies
-
-**YAD** provides graphical screenshot review dialogs.
-
-**Pillow** is optional and is used to create smaller preview images and optimize screenshots embedded into reports.
-
-For example, on Arch/CachyOS:
-
-```bash
-sudo pacman -S spectacle yad python-pillow
-```
-
-If you are using another desktop environment, install whichever screenshot utility is appropriate for your setup.
+---
 
 ## Installation
 
-Chronoshot is currently a single Python script, so no package installation is required.
-
-Clone or copy the script somewhere in your `$PATH`:
+Chronoshot is a plain script + package. Clone it and run it in place:
 
 ```bash
+git clone git@github.com:mdborhan-dev/chronoshot-tracker.git
+cd chronoshot-tracker
+python chronoshot.py status      # smoke test
+```
+
+Want it on your `$PATH`?
+
+```bash
+# Make the launcher executable
 chmod +x chronoshot.py
+
+# Symlink it somewhere on your PATH
+ln -s "$PWD/chronoshot.py" ~/.local/bin/chronoshot
 ```
 
-For example:
-
-```bash
-mkdir -p ~/.local/bin
-cp chronoshot.py ~/.local/bin/chronoshot
-chmod +x ~/.local/bin/chronoshot
-```
-
-Then run:
-
-```bash
-chronoshot --help
-```
-
-You can also run it directly:
-
-```bash
-./chronoshot.py --help
-```
-
-## Quick Start
-
-Start tracking a project:
-
-```bash
-chronoshot start -p "My Project"
-```
-
-Chronoshot will take a screenshot every 30 seconds by default.
-
-Check the current state:
-
-```bash
-chronoshot status
-```
-
-Stop tracking:
-
-```bash
-chronoshot stop
-```
-
-View your tracked time:
-
-```bash
-chronoshot summary --last 7
-```
-
-Generate an HTML report:
-
-```bash
-chronoshot report --open
-```
-
-That's the basic workflow.
+Then `chronoshot start -p "My Project"` works from anywhere.
 
 ---
 
-# Commands
+## Commands
 
-## `start`
-
-Start a new tracking session.
+### `start` — begin tracking
 
 ```bash
-chronoshot start -p "My Project"
+python chronoshot.py start -p "My Project"
+python chronoshot.py start "My Project"            # project as positional arg
+python chronoshot.py start -p "Writing" -i 15m     # screenshot every 15 minutes
+python chronoshot.py start -p "Deep work" --mode later
 ```
 
-A positional project name also works:
+| Flag               | Meaning                                             | Default   |
+| ------------------ | --------------------------------------------------- | --------- |
+| `-p`, `--project`  | Project name                                        | `Default` |
+| `-i`, `--interval` | Time between screenshots (`30`, `30s`, `15m`, `1h`) | `30`      |
+| `--mode`           | `ask` / `later` / `auto` (see below)                | `ask`     |
+| `--note`           | Short note shown in the report                      | —         |
+| `--verbose`        | Print daemon logs to this terminal                  | off       |
+
+> **Note on the default interval:** `30s` is a testing value. Once you're happy with how it behaves, switch to something like `-i 15m` or `-i 1h`. Screenshots add up fast.
+
+### `switch` — change project without stopping
+
+Stops the current session (logs it) and starts a new one, keeping the interval and mode:
 
 ```bash
-chronoshot start "My Project"
+python chronoshot.py switch "Other Project"
 ```
 
-### Screenshot interval
-
-The default interval is **30 seconds**.
-
-You can specify seconds, minutes, or hours:
+### `stop` — stop and log
 
 ```bash
-chronoshot start "My Project" --interval 30
-chronoshot start "My Project" --interval 30s
-chronoshot start "My Project" --interval 15m
-chronoshot start "My Project" --interval 1h
+python chronoshot.py stop
+python chronoshot.py stop --note "wrapped up early"
+python chronoshot.py stop --at 17:30      # you actually stopped at 17:30, not now
 ```
 
-The minimum interval is 5 seconds.
+`--at HH:MM` is handy if you forgot to stop and only remember later.
 
-### Screenshot modes
-
-Chronoshot has three modes.
-
-#### `ask`
-
-Ask what to do after every screenshot:
+### `status` — what's running, what's pending
 
 ```bash
-chronoshot start "My Project" --mode ask
+python chronoshot.py status
 ```
 
-The YAD dialog provides:
+Shows the running project, elapsed time, interval, mode, plus a breakdown of pending screenshots by day and project.
 
-- Accept
-- Reject
-- Later
-
-If YAD isn't installed, screenshots are kept for later review.
-
-#### `later`
-
-Keep every screenshot pending:
+### `review` — accept or reject pending screenshots
 
 ```bash
-chronoshot start "My Project" --mode later
+python chronoshot.py review                    # interactive: pick a scope
+python chronoshot.py review --today
+python chronoshot.py review --project Writing
+python chronoshot.py review --date 2026-09-24
+python chronoshot.py review --all
+python chronoshot.py review --terminal         # no yad, use your image viewer
 ```
 
-Review them later with:
+With no filters, chronoshot lists the pending groups and asks which one to review. With `--today`, `--project`, `--date`, or `--all` it jumps straight in.
+
+**Keys:**
+
+| Key | Action                                 |
+| --- | -------------------------------------- |
+| `a` | Accept                                 |
+| `r` | Reject (delete)                        |
+| `s` | Skip (leave pending)                   |
+| `o` | Reopen in your image viewer            |
+| `q` | Quit — the rest stay pending           |
+| `A` | Accept all remaining in this batch     |
+| `R` | Reject all remaining (asks to confirm) |
+
+### `report` — one HTML page with everything
 
 ```bash
-chronoshot review
+python chronoshot.py report --open
+python chronoshot.py report --last 7 --open
+python chronoshot.py report --from 2026-09-01 --to 2026-09-30
+python chronoshot.py report --project Writing --open
+python chronoshot.py report --embed --out ~/Desktop/report.html
 ```
 
-#### `auto`
+| Flag                       | Meaning                                                   |
+| -------------------------- | --------------------------------------------------------- |
+| `--date DATE`              | A single day (`YYYY-MM-DD`)                               |
+| `--from DATE`, `--to DATE` | Date range                                                |
+| `--last N`                 | Last N days including today                               |
+| `--project NAME`           | Only this project                                         |
+| `--embed`                  | Copy screenshots _into_ the HTML — one file you can email |
+| `--open`                   | Open the result in your browser                           |
+| `--out PATH`               | Where to write it (default: `<data>/reports/report.html`) |
 
-Automatically accept every screenshot:
+Without `--embed`, screenshots are linked relatively — the report is tiny but only works if it stays next to the screenshots. With `--embed`, images are base64'd into the file. Handy for sharing; expect a few MB.
+
+**The report itself has:**
+
+- Date range presets (today / 7 days / 30 days / all) plus manual `from`/`to`
+- Project filter with per-project totals and share bars
+- Full-text search across project names and notes
+- A stacked bar chart: time per day, split by project
+- Per-day timeline strip with clickable screenshot pins
+- Session table (start, end, duration, project, note)
+- Screenshot grid with a built-in lightbox (arrow keys, Esc)
+- **Export CSV** of the currently filtered sessions
+- **Print** stylesheet (dark theme off, all days expanded)
+- Theme toggle: auto / light / dark (remembered in `localStorage`)
+
+### `summary` — quick totals in the terminal
 
 ```bash
-chronoshot start "My Project" --mode auto
+python chronoshot.py summary --last 7
+python chronoshot.py summary --project Writing --last 30
 ```
 
-### Session notes
+Prints a per-day breakdown and totals by project.
 
-Add a note to the session:
+### `delete` — remove a screenshot by file name
 
 ```bash
-chronoshot start "My Project" --note "Working on authentication"
+python chronoshot.py delete 2026-09-24_153012__Writing.png
 ```
 
-### Verbose mode
-
-Run the daemon with its output visible in the current terminal:
-
-```bash
-chronoshot start "My Project" --verbose
-```
+Looks in both `accepted/` and `pending/`.
 
 ---
 
-## `switch`
+## Modes explained
 
-Stop the current session and immediately start another project.
+| Mode        | What happens to each screenshot                                                                                                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ask`**   | A `yad` popup appears with a preview and Accept / Reject / Later buttons. The popup times out after `interval - 5` seconds (clamped to 10–120s) and defaults to **Later**. No `yad`? Falls back to `later` behavior. |
+| **`later`** | Every screenshot is kept in `pending/`. You sort them out in bulk with `review`.                                                                                                                                     |
+| **`auto`**  | Everything is accepted immediately. Good for "I just want a record, I'll delete later."                                                                                                                              |
 
-```bash
-chronoshot switch "Other Project"
-```
-
-For example:
-
-```bash
-chronoshot start "Website"
-chronoshot switch "Skyrim Modding"
-chronoshot switch "Learning Python"
-```
-
-The interval and screenshot mode are inherited from the current session unless explicitly changed.
-
-```bash
-chronoshot switch "Other Project" --interval 15m
-```
+`ask` is the default and usually the right choice for focused work. `later` is better if popups break your flow.
 
 ---
 
-## `stop`
+## Where your data lives
 
-Stop the current tracking session and save it to the day's log.
+By default, everything is under `~/timetrack`:
 
-```bash
-chronoshot stop
 ```
-
-You can add a note:
-
-```bash
-chronoshot stop --note "Finished the login page"
-```
-
-### Correct an ending time
-
-If you forgot to stop Chronoshot at the actual time you finished:
-
-```bash
-chronoshot stop --at 17:30
-```
-
-This records the session as ending at `17:30`.
-
----
-
-## `status`
-
-Show the current tracking state:
-
-```bash
-chronoshot status
-```
-
-It displays information such as:
-
-- Current project
-- Start time
-- Elapsed time
-- Screenshot interval
-- Screenshot mode
-- Session note
-- Accepted screenshots today
-- Pending screenshots
-
----
-
-# Reviewing Screenshots
-
-Screenshots that haven't been accepted are stored as **pending**.
-
-Run:
-
-```bash
-chronoshot review
-```
-
-If YAD is available, screenshots are displayed in a graphical review window.
-
-Otherwise Chronoshot falls back to terminal prompts and opens screenshots using your system image viewer.
-
-### Review a specific project
-
-```bash
-chronoshot review --project "My Project"
-```
-
-### Review a specific date
-
-```bash
-chronoshot review --date 2026-09-24
-```
-
-### Review today's screenshots
-
-```bash
-chronoshot review --today
-```
-
-### Review everything
-
-```bash
-chronoshot review --all
-```
-
-### Force terminal mode
-
-```bash
-chronoshot review --terminal
-```
-
-Terminal review supports:
-
-```text
-a = accept
-r = reject
-s = skip
-o = reopen
-q = quit
-A = accept the rest
-R = reject the rest
-```
-
----
-
-# Reports
-
-Generate the HTML report:
-
-```bash
-chronoshot report
-```
-
-By default it is saved to:
-
-```text
-~/timetrack/reports/report.html
-```
-
-Open it automatically:
-
-```bash
-chronoshot report --open
-```
-
-The report includes:
-
-- Total tracked time
-- Number of sessions
-- Number of accepted screenshots
-- Time per day
-- Project breakdowns
-- Session timelines
-- Session notes
-- Screenshot galleries
-- Screenshot lightbox
-- Date filtering
-- Project filtering
-- Search
-- Screenshot size control
-- Day ordering
-- Light/dark/automatic theme
-- CSV export
-- Printing
-
-## Date filtering
-
-Report for a single day:
-
-```bash
-chronoshot report --date 2026-09-24
-```
-
-Report for the last 7 days:
-
-```bash
-chronoshot report --last 7
-```
-
-Report for a custom range:
-
-```bash
-chronoshot report --from 2026-09-01 --to 2026-09-24
-```
-
-Filter by project:
-
-```bash
-chronoshot report --project "My Project"
-```
-
-You can combine these options:
-
-```bash
-chronoshot report \
-    --from 2026-09-01 \
-    --to 2026-09-24 \
-    --project "My Project" \
-    --open
-```
-
-## Single-file reports
-
-By default, screenshots are linked from the report rather than copied into it.
-
-To create a completely self-contained HTML file:
-
-```bash
-chronoshot report --embed
-```
-
-This embeds the screenshots directly into the HTML.
-
-That makes the resulting report easier to send or move to another machine.
-
-You can also specify the output path:
-
-```bash
-chronoshot report --embed --out ~/Desktop/my-report.html
-```
-
----
-
-# Terminal Summaries
-
-Get a quick summary without generating an HTML report:
-
-```bash
-chronoshot summary
-```
-
-Last 7 days:
-
-```bash
-chronoshot summary --last 7
-```
-
-Today:
-
-```bash
-chronoshot summary --date 2026-09-24
-```
-
-Custom range:
-
-```bash
-chronoshot summary \
-    --from 2026-09-01 \
-    --to 2026-09-24
-```
-
-Specific project:
-
-```bash
-chronoshot summary --project "My Project"
-```
-
-The output includes daily totals, screenshots, time per project, and overall totals.
-
----
-
-# Deleting Screenshots
-
-Delete screenshots by filename:
-
-```bash
-chronoshot delete "2026-09-24_153012__My%20Project.png"
-```
-
-The command checks both the pending and accepted screenshot directories.
-
----
-
-# Data Storage
-
-By default, Chronoshot stores everything in:
-
-```text
 ~/timetrack/
-```
-
-The directory looks approximately like this:
-
-```text
-~/timetrack/
-├── current_session.json
-├── daemon.pid
-├── daemon.log
 ├── logs/
-│   ├── 2026-09-23.json
-│   └── 2026-09-24.json
+│   └── 2026-09-24.json              one file per day, list of sessions
 ├── screenshots/
-│   ├── pending/
-│   │   └── *.png
-│   └── accepted/
-│       └── *.png
-└── reports/
-    └── report.html
+│   ├── pending/                     waiting for review
+│   └── accepted/                    kept
+├── reports/
+│   └── report.html                  last generated report
+├── current_session.json             present only while tracking
+├── daemon.pid                       PID of the running daemon
+└── daemon.log                       daemon stdout/stderr
 ```
 
-Sessions are stored as JSON, with one log file per day.
+**Session format** (`logs/YYYY-MM-DD.json`) — a list, appended to:
 
-There is no external database.
-
-## Custom data directory
-
-Set `TIMETRACK_HOME` to use another location:
-
-```bash
-TIMETRACK_HOME=/tmp/chronoshot-test chronoshot start "Test"
+```json
+[
+  {
+    "start": "2026-09-24T09:15:00",
+    "end": "2026-09-24T11:42:33",
+    "duration": 8853.0,
+    "project": "Writing",
+    "note": ""
+  }
+]
 ```
 
-This is particularly useful when testing Chronoshot without touching your normal tracking data.
+**Screenshot file names** carry everything needed to filter:
 
-For example:
+```
+2026-09-24_153012__Writing.png
+│          │      │
+│          │      └── URL-encoded project name (omitted for old "Default" files)
+│          └────────── HHMMSS
+└───────────────────── YYYY-MM-DD
+```
+
+Old files without `__project` are treated as project `Default`, so previous logs keep working.
+
+### Using a different data folder
+
+Set `TIMETRACK_HOME` to put the data somewhere else — useful for testing:
 
 ```bash
-export TIMETRACK_HOME="$HOME/.local/share/chronoshot"
-chronoshot status
+TIMETRACK_HOME=/tmp/chronoshot-test python chronoshot.py start -p Test
 ```
 
 ---
 
-# Screenshot Naming
+## Project layout
 
-Screenshots include both the timestamp and project name.
+Chronoshot is a thin launcher next to a small package. Every file does one thing.
 
-Example:
-
-```text
-2026-09-24_153012__My%20Project.png
+```
+chronoshot-tracker/
+├── chronoshot.py          ← the launcher you run
+├── README.md
+└── chronoshot/            ← the package
+    ├── __init__.py
+    ├── __main__.py        ← enables `python -m chronoshot`
+    ├── cli.py             ← argparse: defines every command
+    ├── config.py          ← paths, defaults
+    ├── util.py            ← dates, JSON, formatting, daemon PID
+    ├── shots.py           ← screenshot naming, listing, capture, previews
+    ├── daemon.py          ← the background loop
+    ├── session.py         ← start / stop / switch / status
+    ├── review.py          ← accept / reject pending
+    ├── report.py          ← the HTML report + its template
+    └── summary.py         ← terminal totals + delete
 ```
 
-The format is:
-
-```text
-YYYY-MM-DD_HHMMSS__PROJECT.png
-```
-
-Project names are URL-encoded inside the filename.
-
-Older screenshots without a project component are treated as belonging to the `Default` project.
-
----
-
-# How It Works
-
-When you run:
+You can also run it as a module — the two are equivalent:
 
 ```bash
-chronoshot start "My Project"
-```
-
-Chronoshot:
-
-1. Creates the required data directories.
-2. Records the session start time.
-3. Starts a background daemon.
-4. The daemon captures a screenshot at the configured interval.
-5. Screenshots are initially placed in `screenshots/pending/`.
-6. Depending on the selected mode, screenshots are:
-   - accepted automatically,
-   - presented for immediate approval,
-   - or left pending for later review.
-7. When the session is stopped, its duration is written to the daily JSON log.
-8. Accepted screenshots and logged sessions are available to the report generator.
-
-The project name is stored directly in screenshot filenames, so screenshots can be filtered by project without requiring a separate screenshot database.
-
----
-
-# Example Workflow
-
-A typical work session could look like:
-
-```bash
-# Start working
-chronoshot start "Web Development" --interval 15m --mode later
-
-# Check status
-chronoshot status
-
-# Switch to another project
-chronoshot switch "Skyrim Modding"
-
-# Finish working
-chronoshot stop
-```
-
-Later, review screenshots:
-
-```bash
-chronoshot review
-```
-
-Then generate your report:
-
-```bash
-chronoshot report --last 7 --open
-```
-
-Or generate a portable report:
-
-```bash
-chronoshot report --last 7 --embed --out ~/Desktop/time-report.html
+python chronoshot.py start -p "My Project"
+python -m chronoshot start -p "My Project"
 ```
 
 ---
 
-# Screenshot Backend Compatibility
+## Tips
 
-Chronoshot attempts screenshot utilities in this order:
-
-```text
-spectacle
-gnome-screenshot
-grim
-scrot
-```
-
-This makes it suitable for different Linux desktop environments.
-
-For example:
-
-| Environment | Suggested backend |
-|---|---|
-| KDE Plasma | `spectacle` |
-| GNOME | `gnome-screenshot` |
-| wlroots compositors | `grim` |
-| X11 | `scrot` |
-
-Only one needs to be available.
+- **Set the interval to something realistic.** `30s` is only for testing. `15m` or `1h` is normal for real use.
+- **Run `stop` when you're done.** Forgetting leaves a session "unfinished" — `status` will nag, and `stop --at HH:MM` lets you backdate it.
+- **`switch` beats `stop` + `start`.** One command, keeps your interval and mode.
+- **Review in batches.** `review --today` right before bed is much less painful than a week of `ask` popups.
+- **Use `--embed` to share.** One HTML file with everything; send it, print it, whatever.
+- **CSV export for spreadsheets.** In the report sidebar, "Export CSV" gives you whatever's currently filtered.
 
 ---
 
-# Optional YAD GUI
+## Troubleshooting
 
-YAD is used for the graphical screenshot approval and review dialogs.
-
-If it isn't installed, Chronoshot still works.
-
-During tracking, screenshots are simply kept pending instead of showing an approval popup.
-
-During review, Chronoshot falls back to terminal mode.
-
-So YAD is a convenience dependency, not a hard requirement.
-
----
-
-# Privacy
-
-Chronoshot captures screenshots of your desktop.
-
-Because screenshots may contain sensitive information, treat the `~/timetrack/screenshots/` directory as private data.
-
-In particular, screenshots can potentially contain:
-
-- Password managers
-- Private messages
-- Browser tabs
-- Documents
-- Source code
-- Personal information
-
-Review screenshots before sharing reports, especially when using `--embed`.
-
-Chronoshot does not require a cloud service or external account; its tracking data is stored locally.
-
----
-
-# Command Reference
-
-```text
-chronoshot start [PROJECT]
-chronoshot switch PROJECT
-chronoshot stop
-chronoshot status
-chronoshot review
-chronoshot report
-chronoshot summary
-chronoshot delete FILE...
-```
-
-Get the complete built-in help with:
+**"Tracking already running"**
+You have a live daemon. `status` shows it; `stop` ends it. If you're sure nothing is running:
 
 ```bash
-chronoshot --help
+rm ~/timetrack/daemon.pid
 ```
 
-Individual commands also provide their own help:
+**"An unfinished session exists … but nothing is running"**
+The daemon died without logging (crash, kill -9, reboot). Run:
 
 ```bash
-chronoshot start --help
-chronoshot review --help
-chronoshot report --help
-chronoshot summary --help
+python chronoshot.py stop                 # logs it as ending now
+python chronoshot.py stop --at 17:30      # logs it as ending at 17:30
 ```
+
+**No screenshots are being taken**
+Your screenshot tool isn't installed or isn't working. Check:
+
+```bash
+which spectacle gnome-screenshot grim scrot
+```
+
+and look at `~/timetrack/daemon.log` for errors.
+
+**Popups don't appear (`ask` mode)**
+`yad` isn't installed. Either:
+
+```bash
+sudo apt install yad          # Debian/Ubuntu
+sudo pacman -S yad            # Arch
+```
+
+or just use `--mode later` and review in bulk.
+
+**Report has no screenshots, only times**
+Without `--embed`, the HTML links to files next to it. If you moved `report.html` away from `~/timetrack/`, the links break. Regenerate it in place, or use `--embed`.
+
+**`git push` fails with `Temporary failure in name resolution`**
+That's DNS, not git. Check `ping github.com`; if the hostname doesn't resolve but `ping 8.8.8.8` does, your resolver is the problem (try a different network, VPN off/on, or `wsl --shutdown` if you're on WSL).
 
 ---
 
-# License
+## License
 
-No license is currently specified in the source code.
-
-If you plan to publish Chronoshot, add a license file and update this section accordingly.
+Do whatever you want with it.
